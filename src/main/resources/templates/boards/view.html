@@ -1,0 +1,270 @@
+<html xmlns:th="http://www.thymeleaf.org"
+	xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity4"
+	xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+	layout:decorate="~{layout/layout1}">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Thymeleaf3</title>
+<script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
+<script type="text/javascript">
+	$(function(){		
+		
+	});
+</script>
+</head>
+<body>
+
+	<div layout:fragment="content">
+
+		<div class="panel-heading">View Page</div>
+		<div class="panel-body">
+			<form th:action="${'/login'}"></form>
+		
+			<div class="form-group">
+				<label for="bno">BNO</label>
+				<input class="form-control" name="bno" th:value="${vo.bno}" readonly="readonly" />
+			</div>
+			
+			<div class="form-group">			
+				<label for="title">Title</label>
+				<input class="form-control" name="title" th:value="${vo.title}" readonly="readonly" />
+			</div>
+			
+			<div class="form-group">
+				<label for="content">Content</label>		
+				<textarea class="form-control" name="content" rows="3" th:text="${vo.content}" readonly="readonly"></textarea>
+			</div>
+			
+			<div class="form-group">			
+				<label for="writer">Writer</label>
+				<input class="form-control" name="writer" th:value="${vo.writer}" readonly="readonly" />
+			</div>
+			
+			<div class="form-group">			
+				<label for="regDate">RegDate</label>
+				<input class="form-control" name="regDate" th:value="${#dates.format(vo.regdate, 'yyyy-MM-dd')}" readonly="readonly" />
+			</div>
+			
+			
+			
+			<div class="pull-right" th:with="uid=${#authentication.principal} eq 'anonymousUser'? 'Guest':${#authentication.principal.member.uid}">
+			
+				<a th:if="${uid} eq ${vo.writer}" 
+				th:href="@{ modify(page=${PageVo.page}, size=${PageVo.size}, type=${PageVo.type}, keyword=${PageVo.keyword}, bno=${vo.bno}) }" 
+				class="btn btn-default">Modify/Delete</a>
+				
+				<a th:href="@{ list(page=${PageVo.page}, size=${PageVo.size}, type=${PageVo.type}, keyword=${PageVo.keyword}, bno=${vo.bno}) }" 
+				class="btn btn-default">List</a>
+				
+			</div>
+			
+			<!-- REPLY -->
+			<div class="container">
+			
+				<table class="table tabel-striped table-bordered table-hover">
+				
+					<thead>
+						<tr>
+							<th>RNO</th>
+							<th>REPLY TEXT</th>
+							<th>REPLER</th>
+							<th>REPLY DATE</th>
+						</tr>						
+					</thead>
+					<tbody id="replyTable">
+					
+					</tbody>
+				
+				</table>
+				
+				<div class="pull-right">
+					<button class="btn" id="addReplyBtn">Add Reply</button>
+				</div>
+			
+			</div>
+			
+			<!-- Modal -->
+			<div id="myModal" class="modal fade" role="dialog">
+				<div class="modal-dialog">
+				
+					<div class="modal-content">
+					
+						<div class="modal-header">
+							<button type="button" class="close" data-dismiss="modal">&times;</button>
+							<h4 class="modal-title">Modal Header</h4>
+						</div>
+						<div class="modal-body">
+							<label for="">Reply Text</label>
+							<input type="text" class="form-control" name="replyText" />
+							<label for="">Replyer</label>
+							<input type="text" class="form-control" name="replyer" readonly="readonly" />
+						</div>
+						<div class="modal-footer">
+							<button class="btn btn-info" id="modalBtn">Save</button>
+							<button id="delModalBtn" class="btn btn-danger">Delete</button>
+							<button class="btn btn-default" type="button" data-dismiss="modal">Close</button>
+						</div>
+					
+					</div>
+				
+				</div>
+			</div>
+			
+		</div>		
+
+	</div> <!-- end fragment -->
+
+	<th:block layout:fragment="script">
+
+	<script th:inline="javascript" th:src="@{'/js/reply.js'}"></script>
+	
+	<script th:inline="javascript">
+	
+		$(function(){
+			
+			var uid = [[${#authentication.principal} eq 'anonymousUser'? null:${#authentication.principal.member.uid}]];
+			var csrf = JSON.parse('[[${_csrf}]]');
+			
+			// REPLY add, delete, update
+			var mode;
+			
+			var bno = [[${vo.bno}]];
+			
+			var replyTextObj = $("input[name='replyText']");
+			var replyerObj = $("input[name='replyer']");
+			
+			var rno;
+			
+			
+			
+			$("#addReplyBtn").on("click", function(){
+				
+				if(uid == null) {
+					if(confirm("로그인 할까요?")) {
+						self.location = [[@{/login}]] + "?dest=" + encodeURIComponent(self.location);
+					}
+					return;
+				}
+				
+				replyerObj.val(uid);
+				
+				$("#myModal").modal("show");
+				$(".modal-title").text("Add Reply");
+				
+				$("#delModalBtn").hide();
+				
+				mode = "ADD";
+			});
+			
+			
+			
+			function afterAll(list) {
+				printList(list);
+				$("#myModal").modal("hide");
+				replyTextObj.val("");
+				replyerObj.val("");
+			}			
+			
+			$("#modalBtn").click(function(){
+				
+				var replyText = replyTextObj.val();
+				var replyer = replyerObj.val();
+				
+				if(mode == 'ADD') {			
+					
+					var obj = {replyText: replyText, replyer: replyer, bno: bno, csrf: csrf};
+					
+					replyManager.add(obj, function(list){						
+						alert("새로운 댓글이 추가되었습니다.");
+						afterAll(list);
+					});
+				} else if(mode == 'MOD') {
+				
+					var obj = {replyText: replyText, bno: bno, rno: rno, csrf: csrf};
+					
+					replyManager.update(obj, function(list){
+						alert("댓글이 수정되었습니다.");
+						afterAll(list);
+					});
+					
+				}
+			});
+			
+			// Update & Delete Modal			
+			$("#replyTable").on("click", "tr", function(e){
+				
+				var tds = $(this).find("td");
+				
+				rno = tds[0].innerHTML;
+				mode = "MOD";
+				
+				replyTextObj.val(tds[1].innerHTML);
+				replyerObj.val(tds[2].innerHTML);
+				
+				$("#delModalBtn").show();
+				$("#myModal").modal("show");
+				$(".modal-title").text("Modiy/Delete Reply");
+				
+				if(uid != tds[2].innerHTML.trim()) {
+					$("#delModalBtn").hide();
+					$("#modalBtn").hide();
+				} else if(uid == tds[2].innerHTML.trim()) {
+					$("#delModalBtn").show();
+					$("#modalBtn").show();
+				}
+			});
+			
+			$("#delModalBtn").on("click", function(){
+				
+				var obj = {bno: bno, rno: rno, csrf: csrf};
+				
+				replyManager.remove(obj, function(list){					
+					alert("댓글이 삭제되었습니다.");
+					afterAll(list);
+					/* $("#myModal").modal("hide");
+					replyTextObj.val("");
+					replyerObj.val(""); */
+				});
+			});
+			
+			
+			
+			// REPLYLIST
+			
+			// 즉시 실행 함수
+			(function(){
+				// load replies
+				replyManager.getAll([[${vo.bno}]], printList);
+			})();			
+			
+			function printList(list) {
+				var str = "";
+				var replyObj;
+				for(var i = 0; i < list.length; i++) {
+					replyObj = list[i];
+					
+					str += "<tr>" +
+					"<td>" + replyObj.rno + "</td>" +
+					"<td>" + replyObj.replyText + "</td>" +
+					"<td>" + replyObj.replyer + "</td>" +
+					"<td>" + formatDate(replyObj.regdate) + "</td>" +
+					"</tr>";
+				}
+				$("#replyTable").html(str);
+			}
+			
+			function formatDate(timeValue) {
+				var date = new Date(timeValue);
+				return date.getFullYear()
+					+ "-" + (date.getMonth() + 1 >= 10? date.getMonth() + 1 : '0' + (date.getMonth() + 1) )
+					+ "-" + date.getDate()
+			}			
+		});
+	
+	</script>
+	
+	</th:block>
+
+</body>
+</html>
